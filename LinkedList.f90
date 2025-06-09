@@ -35,8 +35,6 @@ module linkedlistclass
 
   interface new
      module procedure newlist
-     module procedure newlistwithvalue
-     !module procedure newlistwitharray
   end interface
 
   interface inserthead
@@ -76,25 +74,18 @@ module linkedlistclass
 contains
 
   !!Constructor
-  elemental subroutine newlist(this)
+  elemental subroutine newlist(this, val)
     type(LinkedList),intent(out) :: this
+    real(8), intent(in), optional :: val
     allocate(this % first)
     this % last => this % first
     nullify(this % first % next)
     nullify(this % first % prev)
+    if (present(val)) then
+      this % first % value = val
+      this % size = 1
+    end if
   end subroutine newlist
-
-  !!Constructor with initial value
-  elemental subroutine newlistwithvalue(this, val)
-    type(LinkedList),intent(out) :: this
-    real(8), intent(in) :: val
-    allocate(this % first)
-    this % last => this % first
-    nullify(this % first % next)
-    nullify(this % first % prev)
-    this % first % value = val
-    this % size = 1
-  end subroutine newlistwithvalue
 
   !!Constructor with initial array of values
   !subroutine newlistwitharray(this, vals)
