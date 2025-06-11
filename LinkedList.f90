@@ -7,7 +7,7 @@ module linkedlistclass
   integer, private, parameter :: dp = selected_real_kind(15)
   
   type, private :: node
-     real(8)  :: value = 0.d0
+     real(8), allocatable, dimension(:)  :: value
      type(node), pointer :: next => null()
      type(node), pointer :: prev => null()
   end type node
@@ -74,14 +74,15 @@ module linkedlistclass
 contains
 
   !!Constructor
-  elemental subroutine newlist(this, val)
+  subroutine newlist(this, val)
     type(LinkedList),intent(out) :: this
-    real(8), intent(in), optional :: val
+    real(8), dimension(:), intent(in), optional :: val
     allocate(this % first)
     this % last => this % first
     nullify(this % first % next)
     nullify(this % first % prev)
     if (present(val)) then
+      allocate(this % first % value(size(val)))
       this % first % value = val
       this % size = 1
     end if
@@ -101,17 +102,22 @@ contains
   !!Insert an element into list
   subroutine inserthead(this,val)
     type(LinkedList),intent(inout)              :: this
-    real(8),               intent(in)           :: val    
+    real(8), dimension(:), intent(in)           :: val    
     type(node),            pointer              :: new_node
     if (.not.associated(this % first)) then
-      call newlistwithvalue(this, val)
+      call newlist(this, val)
     else
       allocate(new_node)
       nullify(new_node % next)
       nullify(new_node % prev)
-      new_node % value = val
+      allocate(new_node%value(size(val)))
+      new_node%value = val 
+      if(this % size == 0) then
+        this % last => new_node
+      else
+        new_node % next => this % first
+      end if     
       this % first % prev => new_node
-      new_node % next  => this % first
       this % first => new_node
       this % size = this % size + 1
     end if
@@ -120,16 +126,21 @@ contains
   !!Insert an element at the end of the list
   subroutine inserttail(this, val)
    type(LinkedList),intent(inout)              :: this
-    real(8),               intent(in)           :: val    
+    real(8), dimension(:), intent(in)           :: val    
     type(node),            pointer              :: new_node
     if(.not.associated(this%last)) then
-      call newlistwithvalue(this, val)
+      call newlist(this, val)
     else
       allocate(new_node)
       nullify(new_node % next)
       nullify(new_node % prev)
+      allocate(new_node%value(size(val)))
       new_node % value = val
-      new_node % prev => this % last
+      if(this % size == 0) then
+        this % first => new_node
+      else
+        new_node % prev => this % last
+      end if
       this % last % next => new_node
       this % last => new_node
       this % size = this % size + 1
@@ -137,9 +148,9 @@ contains
   end subroutine inserttail
 
   !!Remove an element from the head of the list
-  elemental subroutine pophead(this, val)
+  subroutine pophead(this, val)
     type(LinkedList),intent(inout)              :: this
-    real(8),               intent(out)           :: val    
+    real(8), dimension(:), intent(out)           :: val   
     if (this%size == 0) then
       !print*, 'ERROR: Impossible to remove an element: empty list'
       Return
@@ -154,9 +165,9 @@ contains
     this % size = this % size - 1
   end subroutine pophead
 
-  elemental subroutine poptail(this, val)
+  subroutine poptail(this, val)
     type(LinkedList),intent(inout)              :: this
-    real(8),               intent(out)           :: val    
+    real(8), dimension(:), intent(inout)           :: val   
     if (this%size == 0) then
       !print*, 'ERROR: Impossible to remove an element: empty list'
       Return
@@ -172,19 +183,19 @@ contains
   end subroutine poptail
 
   !!Number of entries
-  elemental integer function sizelist(this)
+  integer function sizelist(this)
     type(LinkedList),intent(in) :: this
     sizelist = this % size
   end function sizelist
   
   !!Ask if linked list is empty
-  elemental logical function emptylist(this)
+  logical function emptylist(this)
     type(LinkedList),intent(in) :: this
     emptylist = .not.associated(this % first)
   end function emptylist
 
   !!Destructor
-  elemental subroutine deletelist(this)
+  subroutine deletelist(this)
     type(LinkedList),intent(inout) :: this
     type(node),            pointer       :: temp_ptr,trail_ptr
      trail_ptr => this % first
@@ -203,36 +214,21 @@ contains
   !!in the linked list.
   subroutine elementslist(this, vals)
     type(LinkedList), intent(inout) :: this
-    real(8),                intent(out)   :: vals(this % size)
+    real(8), dimension(:,:), intent(inout)   :: vals
     type(node),             pointer       :: temp_ptr
     integer                               :: i
     temp_ptr => this % first
     i=1
     do while (associated(temp_ptr))
-      vals(i) = temp_ptr % value
-      temp_ptr => temp_ptr % next
-      i = i + 1
+      if(allocated(temp_ptr % value)) then
+        vals(i,:) = temp_ptr % value(:)
+        temp_ptr => temp_ptr % next
+        i = i + 1
+      else
+        return
+      end if
     end do
   end subroutine elementslist
 
 end module linkedlistclass
 
- program main
-  use linkedlistclass
-  type(LinkedList) :: list1, list2
-  real(8), allocatable :: entries(:)
-  call new(list1)
-  call new(list2, 5.d0)
-  call inserthead(list1, 1.d0)
-  call inserthead(list1, 2.d0)
-  ! In this basic implementation, the entries array must be allocated
-  ! oustide the list.
-  allocate(entries(size(list1)))
-  call elements(list1, entries)
-  print*, 'list1:', entries
-  deallocate(entries)
-  allocate(entries(size(list2)))
-  call elements(list2, entries)
-  print*, 'list2:', entries
-  deallocate(entries)
- end program main
