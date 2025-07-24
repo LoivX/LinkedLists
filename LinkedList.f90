@@ -7,7 +7,7 @@ module linkedlistclass
   integer, private, parameter :: dp = selected_real_kind(15)
   
   type, private :: node
-     real(8), allocatable, dimension(:)  :: value
+     double precision, allocatable, dimension(:)  :: value
      type(node), pointer :: next => null()
      type(node), pointer :: prev => null()
   end type node
@@ -22,18 +22,21 @@ module linkedlistclass
   private
 
   public :: &
-       new,&
+       newlist,&
        inserthead,&
        inserttail,&
        pophead,&
        poptail,&
        size,&
-       elements,&
-       empty,&
-       clear,&
+       get_elements,&
+       get_first_element,&
+       get_last_element,&
+       is_empty,&
+       find_element,&
+       remove_ith_element,&
        delete
 
-  interface new
+  interface newlist
      module procedure newlist
   end interface
 
@@ -55,19 +58,27 @@ module linkedlistclass
      module procedure sizelist
   end interface
   
-  interface empty
+  interface is_empty
      module procedure emptylist
-  end interface empty
+  end interface is_empty
+
+  interface find_element
+      module procedure find
+  end interface find_element
   
-  interface elements
-     module procedure elementslist
-  end interface elements
+  interface get_elements
+     module procedure get_elements
+  end interface get_elements
+
+  interface get_first_element
+     module procedure get_first
+  end interface get_first_element
+
+  interface get_last_element
+     module procedure get_last
+  end interface get_last_element
 
   interface delete
-     module procedure deletelist
-  end interface
-
-  interface clear
      module procedure deletelist
   end interface
 
@@ -76,7 +87,7 @@ contains
   !!Constructor
   subroutine newlist(this, val)
     type(LinkedList),intent(out) :: this
-    real(8), dimension(:), intent(in), optional :: val
+    double precision, dimension(:), intent(in), optional :: val
     allocate(this % first)
     this % last => this % first
     nullify(this % first % next)
@@ -91,7 +102,7 @@ contains
   !!Constructor with initial array of values
   !subroutine newlistwitharray(this, vals)
   !  type(LinkedList),intent(out) :: this
-  !  real(8), dimension(:), allocatable, intent(in) :: vals(:)
+  !  double precision, dimension(:), allocatable, intent(in) :: vals(:)
   !  integer :: i
   !  call newlist(this)
   !  do i = 1, size(vals)
@@ -102,7 +113,7 @@ contains
   !!Insert an element into list
   subroutine inserthead(this,val)
     type(LinkedList),intent(inout)              :: this
-    real(8), dimension(:), intent(in)           :: val    
+    double precision, dimension(:), intent(in)           :: val    
     type(node),            pointer              :: new_node
     if (.not.associated(this % first)) then
       call newlist(this, val)
@@ -126,7 +137,7 @@ contains
   !!Insert an element at the end of the list
   subroutine inserttail(this, val)
    type(LinkedList),intent(inout)              :: this
-    real(8), dimension(:), intent(in)           :: val    
+    double precision, dimension(:), intent(in)           :: val    
     type(node),            pointer              :: new_node
     if(.not.associated(this%last)) then
       call newlist(this, val)
@@ -150,7 +161,7 @@ contains
   !!Remove an element from the head of the list
   subroutine pophead(this, val)
     type(LinkedList),intent(inout)              :: this
-    real(8), dimension(:), intent(out)           :: val   
+    double precision, dimension(:), intent(inout)           :: val   
     if (this%size == 0) then
       !print*, 'ERROR: Impossible to remove an element: empty list'
       Return
@@ -167,9 +178,9 @@ contains
 
   subroutine poptail(this, val)
     type(LinkedList),intent(inout)              :: this
-    real(8), dimension(:), intent(inout)           :: val   
+    double precision, dimension(:), intent(inout)           :: val   
     if (this%size == 0) then
-      !print*, 'ERROR: Impossible to remove an element: empty list'
+      print*, 'ERROR: Impossible to remove an element: empty list'
       Return
     end if
     val = this % last % value
@@ -182,6 +193,46 @@ contains
         this % size = this % size - 1
   end subroutine poptail
 
+  !!Remove the ith element from the list
+  subroutine remove_ith_element(this, index, val)
+    type(LinkedList),intent(inout)              :: this
+    integer, intent(in) :: index
+    double precision, dimension(:), intent(inout)           :: val
+    type(node), pointer :: temp_ptr
+    integer :: i
+
+    if (index < 1 .or. index > this % size) then
+      print *, 'ERROR: Index out of bounds in remove_ith_element'
+      return
+    end if
+    if (index == 1) then
+      call pophead(this, val)
+      return
+    end if
+    if (index == this % size) then
+      call poptail(this, val)
+      return
+    end if
+    temp_ptr => this % first
+    i = 1
+    do while (associated(temp_ptr))
+      if (i == index) then
+        val = temp_ptr % value
+        temp_ptr % prev % next => temp_ptr % next
+        temp_ptr % next % prev => temp_ptr % prev
+        deallocate(temp_ptr % value)
+        deallocate(temp_ptr)
+        this % size = this % size - 1
+        return
+      end if
+      temp_ptr => temp_ptr % next
+      i = i + 1
+    end do
+    print *, 'ERROR: Index not found in remove_ith_element'
+  end subroutine remove_ith_element
+    
+
+
   !!Number of entries
   integer function sizelist(this)
     type(LinkedList),intent(in) :: this
@@ -193,6 +244,23 @@ contains
     type(LinkedList),intent(in) :: this
     emptylist = .not.associated(this % first)
   end function emptylist
+
+  function find(this, val) RESULT(index)
+    type(LinkedList), intent(in) :: this
+    double precision, dimension(:), intent(in) :: val
+    type(node), pointer :: temp_ptr
+    integer :: index
+    temp_ptr => this % first
+    index = 1
+    do while (associated(temp_ptr))
+      if (allocated(temp_ptr % value)) then
+        if(all(temp_ptr % value == val)) return
+      end if
+      temp_ptr => temp_ptr % next
+      index = index + 1
+    end do
+    index = -1
+  end function find
 
   !!Destructor
   subroutine deletelist(this)
@@ -212,9 +280,9 @@ contains
 
   !!Return an allocated integer pointer containing the elements
   !!in the linked list.
-  subroutine elementslist(this, vals)
+  subroutine get_elements(this, vals)
     type(LinkedList), intent(inout) :: this
-    real(8), dimension(:,:), intent(inout)   :: vals
+    double precision, dimension(:,:), intent(inout)   :: vals
     type(node),             pointer       :: temp_ptr
     integer                               :: i
     temp_ptr => this % first
@@ -228,7 +296,27 @@ contains
         return
       end if
     end do
-  end subroutine elementslist
+  end subroutine get_elements
+
+  subroutine get_first(this, val)
+    type(LinkedList), intent(inout) :: this
+    double precision, dimension(:), intent(inout) :: val
+    if (.not. associated(this % first)) then
+      print *, 'ERROR: No first element in the list'
+      return
+    end if
+    val = this % first % value
+  end subroutine get_first
+
+  subroutine get_last(this, val)
+    type(LinkedList), intent(inout) :: this
+    double precision, dimension(:), intent(inout) :: val
+    if (.not. associated(this % last)) then
+      print *, 'ERROR: No last element in the list'
+      return
+    end if
+    val = this % last % value
+  end subroutine get_last
 
 end module linkedlistclass
 
